@@ -15,4 +15,4 @@
 </a>
 </p>
 
-An open source scientific article created using the [showyourwork](https://github.com/showyourwork/showyourwork) workflow.
+A note about how many Monte-Carlo samples are required to accurately perform integrals over parameters at the bottom of the hierarchy in hierarchical models (e.g. parameter estimates for each observation in an analysis of a gravitational wave catalog).  An open source scientific article created using the [showyourwork](https://github.com/showyourwork/showyourwork) workflow.

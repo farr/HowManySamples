@@ -1,15 +1,21 @@
 % Define document class
-\documentclass[twocolumn]{aastex631}
+\documentclass[modern]{aastex631}
 \usepackage{showyourwork}
+
+\newcommand{\dd}{\mathrm{d}}
 
 % Begin!
 \begin{document}
 
 % Title
-\title{An open source scientific article}
+\title{How Many Samples Do We Need?}
 
 % Author list
-\author{@farr}
+\author[0000-0003-1540-8562]{Will M. Farr}
+\email{will.farr@stonybrook.edu}
+\affiliation{Department of Physics and Astronomy, Stony Brook University, Stony Brook, NY 11794, USA}
+\email{wfarr@flatironinstitute.org}
+\affiliation{Center for Computational Astrophysics, Flatiron Institute, New York, NY 10010, USA}
 
 % Abstract with filler text
 \begin{abstract}
@@ -31,26 +37,17 @@
 \section{Introduction}
 \label{sec:intro}
 
-Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
-Ut purus elit, vestibulum ut, placerat ac, adipiscing vitae, felis.
-Curabitur dictum gravida mauris, consectetuer id, vulputate a, magna.
-Donec vehicula augue eu neque, morbi tristique senectus et netus et.
-Mauris ut leo, cras viverra metus rhoncus sem, nulla et lectus vestibulum.
-Phasellus eu tellus sit amet tortor gravida placerat.
-Integer sapien est, iaculis in, pretium quis, viverra ac, nunc.
-Praesent eget sem vel leo ultrices bibendum.
-Aenean faucibus, morbi dolor nulla, malesuada eu, pulvinar at, mollis ac.
-Curabitur auctor semper nulla donec varius orci eget risus.
-Duis nibh mi, congue eu, accumsan eleifend, sagittis quis, diam.
-Duis eget orci sit amet orci dignissim rutrum.
-
-Nam dui ligula, fringilla a, euismod sodales, sollici- tudin vel, wisi.
-Morbi auctor lorem non justo, nam lacus libero, pretium at, lobortis vitae.
-Donec aliquet, tortor sed accumsan bibendum, erat ligula aliquet magna.
-Morbi ac orci et nisl hendrerit mollis, suspendisse ut massa, cras nec ante.
-Pellentesque a nulla cum sociis natoque penatibus et magnis dis parturient.
-Aliquam tincidunt urna, nulla ullamcorper vestibulum turpis.
-Pellentesque cursus luctus mauris \citep{Luger2021}.
+The form of the hierarchical marginal likelihood is 
+\begin{equation}
+    \log \mathcal{L}\left( \mathbf{d} \mid \lambda \right) = \sum_{i=1}^{N} \log \int \dd \theta_i \, p\left( d_i \mid \theta_i \right) p\left( \theta_i \mid \lambda \right).
+\end{equation}
+We often approximate the integrals in this expression using Monte Carlo
+integration over samples for each event $i$, $\theta_{i}^{(s)}$, $s = 1, \ldots,
+S_i$, drawn from a posterior density using some fiducial prior, $p\left( \theta
+\right)$:
+\begin{equation}
+    \log \mathcal{L}\left( \mathbf{d} \mid \lambda \right) \approx \sum_{i=1}^{N} \log \frac{1}{S_i} \sum_{s=1}^{S_i} \frac{p\left( \theta_i^{(s)} \mid \lambda \right)}{p\left( \theta_i^{(s)} \right)} .
+\end{equation}
 
 \bibliography{bib}
 
