@@ -26,12 +26,6 @@ jobs:
       - name: Julia Cache
         uses: julia-actions/cache@v2
 
-      - name: Cache Data
-        uses: actions/cache@v4
-        with:
-          path: src/data
-          key: data
-
       - name: Build the article PDF
         id: build
         with:
