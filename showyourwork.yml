@@ -33,8 +33,12 @@ datasets:
 dependencies:
   # src/scripts/my_script.py:
   #   - src/data/dataset_for_my_script.dat
-  # src/tex/ms.tex:
-  #   - src/tex/stylesheet.tex
+  src/tex/ms.tex:
+    - src/tex/output/min_neff.txt # I guess we have to add these manually?
+    - src/tex/output/max_lp_var.txt
+  src/scripts/plot_mu_sigma.jl:
+    - Manifest.toml
+    - src/data/traces.h5
 
 # Name of the `.tex` manuscript and corresponding `.pdf` article
 ms_name: ms

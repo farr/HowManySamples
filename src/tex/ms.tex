@@ -1,8 +1,13 @@
 % Define document class
 \documentclass[modern]{aastex631}
+\usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{showyourwork}
 
 \newcommand{\dd}{\mathrm{d}}
+\newcommand{\Neff}{N_{\mathrm{eff}}}
+
+\DeclareMathOperator{\var}{var}
 
 % Begin!
 \begin{document}
@@ -48,6 +53,65 @@ S_i$, drawn from a posterior density using some fiducial prior, $p\left( \theta
 \begin{equation}
     \log \mathcal{L}\left( \mathbf{d} \mid \lambda \right) \approx \sum_{i=1}^{N} \log \frac{1}{S_i} \sum_{s=1}^{S_i} \frac{p\left( \theta_i^{(s)} \mid \lambda \right)}{p\left( \theta_i^{(s)} \right)} .
 \end{equation}
+Each term in the sum takes the form of 
+\begin{equation}
+    \log \sum_{s=1}^{S_i} w_i^{(s)} + \mathrm{const},
+\end{equation}
+with 
+\begin{equation}
+    w_i^{(s)} = \frac{p\left( \theta_i^{(s)} \mid \lambda \right)}{p\left( \theta_i^{(s)} \right)}.
+\end{equation}
+
+The Monte-Carlo sum introduces some variance into the estimate of the log
+likelihood.  The variance of each term is given by 
+\begin{equation}
+    \var \left( \log \sum_{s=1}^{S_i} w_i^{(s)} \right) \simeq \frac{\var\left( \sum_{s=1}^{S_i} w_i^{(s)} \right)}{\left( \sum_{s=1}^{S_i} w_i^{(s)} \right)^2} = \frac{S_i \var\left( w_i \right)}{\left( \sum_{s=1}^{S_i} w_i^{(s)} \right)^2}.
+\end{equation}
+If we define the ``effective number of samples'' $\Neff$ as the inverse of the
+variance of the log of the sum of the weights, then we can estimate $\Neff$
+using the empirical variance and the sum of the weights $w_i$ via%
+\footnote{Equation \eqref{eq:Neff} is invariant under rescaling of the weights
+by a constant factor; a convenient choice of rescaling can help with stability
+in the estimate of $\Neff$.  Usually we have access to the log of the weights
+(to avoid under- or overflow).  Let $l_s = \log w_i^{(s)}$ (suppressing the $i$
+index for clarity).  Then let $\mu_l = \log \sum_s \exp l_s$ be the log of the
+sum of the weights; $\mu_l$ is computable without over- or underflow via the
+well-known \texttt{logsumexp} special function.  Then let $\tilde{w}_i^{(s)} =
+\exp\left( w_i^{(s)} - \mu_l \right)$; the $\tilde{w}_i^{(s)}$ sum to 1, and
+therefore their variance can be computed without undue roundoff error.  With
+this rescaling, $\Neff = 1 / \left( S \var\left( \tilde{w}_i \right) \right)$.}%
+\begin{equation}
+    \label{eq:Neff}
+    \Neff = \frac{\left( \sum_{s=1}^{S_i} w_i^{(s)} \right)^2}{S_i \var\left( w_i \right)}.
+\end{equation}
+Note that in the limit that the sum of the weights is dominated by a single weight, say (without loss of generality) the $s = 1$ weight, then we have 
+\begin{equation}
+    \sum_{s=1}^{S_i} w_i^{(s)} \simeq w_i^{(1)},
+\end{equation}
+and (assuming $S_i \gg 1$) 
+\begin{equation}
+    S_i \var\left( w_i \right) \simeq \left( w_i^{(1)} \right)^2,    
+\end{equation}
+so that $\Neff \simeq 1$.
+
+We demonstrate here with a simple hierarchical statistical model that a
+sufficient condition on the accuracy of the Monte-Carlo estimate of the the
+marginal log likelihood is that each term in the sum has $\Neff \gg 1$ (here we
+use a threshold of 10), even if the total variance of the marginal log
+likelihood is larger than 1.  We argue that this condition should be sufficient
+for other, more complex hierarchical models because it does not depend on the
+\emph{structure} of the likelihood function.
+
+\begin{figure}
+    \includegraphics[width=\columnwidth]{figures/mu_sigma_pairplot.pdf}
+    \script{plot_mu_sigma.jl}
+    \caption{\label{fig:mu-sigma} pair plot of the posterior samples for the
+    parameters $\mu$ and $\sigma$ in the hierarchical model.  Over all posterior
+    samples, the smallest $\Neff$ for the likelihoods associated with the
+    $N=128$ observations was \variable{output/min_neff.txt}, while the largest
+    combined variance for the marginal log likelihood was
+    \variable{output/max_lp_var.txt}.}
+\end{figure}
 
 \bibliography{bib}
 

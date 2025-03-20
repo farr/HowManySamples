@@ -69,18 +69,17 @@ end
 
     Turing.@addlogprob!(sum(map(logsumexp, logps)))
 
-    neff_samps = map(logps) do lp
-        mu = logsumexp(lp)
-        s2 = logsumexp(2 .* lp)
-        exp(2 * mu - s2)
-    end
-
     lp_vars = map(logps) do lp
         mu = logsumexp(lp)
         p_scaled = exp.(lp .- mu)
         p_var = var(p_scaled)
         length(lp) * p_var
     end
+
+    neff_samps = map(lp_vars) do lp
+        1/lp
+    end
+
     return (; neff_samps = neff_samps, lp_vars = lp_vars, total_lp_var = sum(lp_vars))
 end
 
@@ -199,7 +198,7 @@ function run_one_simulation(; N = 128, Nsamp_init = 16, Neff_min = 10)
     xsamps, logwts = draw_samples_and_weights(result_exact.x_obs, result_exact.sigma_obs, Nsamp)
 
     result_mc = run_sample_simulation(xsamps, logwts)
-    @info "Found $(round(min_neff_samps(result_mc.genq), digits=2)) effective samples, max log(p_i) variance = $(round(max_lp_var(result_mc.genq), digits=2)), max log(p) variance = $(round(maximum([x.total_lp_var for x in result_mc.genq]), digits=2))"
+    @info "Found $(round(min_neff_samps(result_mc.genq), digits=2)) effective samples, digits=2)), max log(p) variance = $(round(maximum([x.total_lp_var for x in result_mc.genq]), digits=2))"
     while min_neff_samps(result_mc.genq) < Neff_min
         old_xsamps = xsamps
         xsamps, logwts = update_samples(result_exact.x_obs, result_exact.sigma_obs, xsamps, logwts, result_mc.genq, Neff_min)
@@ -209,7 +208,7 @@ function run_one_simulation(; N = 128, Nsamp_init = 16, Neff_min = 10)
             end
         end
         result_mc = run_sample_simulation(xsamps, logwts)
-        @info "Found $(round(min_neff_samps(result_mc.genq), digits=2)) effective samples, max log(p_i) variance = $(round(max_lp_var(result_mc.genq), digits=2)), max log(p) variance = $(round(maximum([x.total_lp_var for x in result_mc.genq]), digits=2))"
+        @info "Found $(round(min_neff_samps(result_mc.genq), digits=2)) effective samples, max log(p) variance = $(round(maximum([x.total_lp_var for x in result_mc.genq]), digits=2))"
     end
     plot = pairplot_results(result_exact, result_mc)
     return (; result_exact = result_exact, result_mc = result_mc, plot = plot)
