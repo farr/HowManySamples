@@ -3,10 +3,6 @@ name: build pull request
 on:
   pull_request:
 
-permissions:
-  actions: write
-  contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
