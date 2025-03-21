@@ -22,6 +22,7 @@ include("paths.jl")
 
 Nobs = 128
 Neff_thresh = 10
+Nsamp_max = 65536
 
 Random.seed!(0xe3e4085fd0b2c6c1)
 obs = rand(Observations, Nobs)
@@ -29,7 +30,7 @@ obs = rand(Observations, Nobs)
 exact_trace = sample(exact_model(obs), NUTS(1000, 0.85), MCMCDistributed(), 1000, 4)
 
 Random.seed!(0xc506bfb940402ad9)
-full_samp = rand(Samples, obs, 32768)
+full_samp = rand(Samples, obs, Nsamp_max)
 Nsamp = 16*ones(Int, length(obs.xo))
 mc_trace = sample_mc(full_samp, Nsamp)
 
@@ -46,7 +47,9 @@ while true
     sel = ns .< Neff_thresh
     Nsamp[sel] .= 2*Nsamp[sel]
 
-    mc_trace = sample_mc(full_samp, Nsamp)
+    @assert maximum(Nsamp) <= Nsamp_max
+
+    global mc_trace = sample_mc(full_samp, Nsamp)
 end
 
 h5open(joinpath(data, "traces.h5"), "w") do file
