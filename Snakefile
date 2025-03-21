@@ -29,6 +29,8 @@ rule min_neff:
         "src/data/traces.h5"
     output:
         "src/tex/output/min_neff.txt",
-        "src/tex/output/max_lp_var.txt"
+        "src/tex/output/max_lp_var.txt",
+        "src/tex/output/init_min_neff.txt",
+        "src/tex/output/init_max_lp_var.txt"
     shell:
         "julia src/scripts/generate_min_neff.jl"

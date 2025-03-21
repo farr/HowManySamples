@@ -1,68 +1,67 @@
 module HowManySamples
 
-export mu_true, sigma_true, traceplot, pairplot_results, run_one_simulation
+export mu_true, sigma_true, traceplot, Observations, Samples, exact_model, mc_model, expand_samples
 
 using CairoMakie
 using Distributions
 using MCMCChains
 using PairPlots
 using StatsFuns
+using Random
 using Turing
 
 const mu_true = 0.0
 const sigma_true = 1.0
 
-function draw_truth(N)
-    return rand(Normal(mu_true, sigma_true), N)
+struct Observations
+    x::Vector{Float64}
+    xo::Vector{Float64}
+    so::Vector{Float64}
 end
 
-function draw_obs_sigmas(N)
-    return rand(Uniform(sigma_true, 2*sigma_true), N)
+struct Samples
+    obs::Observations
+    xs::Vector{Vector{Float64}}
+    logwts::Vector{Vector{Float64}}
 end
 
-function draw_obs(x_true, sigma_obs)
-    return rand.(Normal.(x_true, sigma_obs))
+function Random.rand(::Type{Observations}, N::T) where T <: Integer
+    x = rand(Normal(mu_true, sigma_true), N)
+    so = rand(Uniform(sigma_true, 2*sigma_true), N)
+    xo = [rand(Normal(x[i], so[i])) for i in 1:N]
+    return Observations(x, xo, so)
 end
 
-function draw_samples(xo, so, Nsamp::Int)
-    return draw_samples(xo, so, Nsamp*ones(Int, length(xo)))
+function Random.rand(s::Type{Samples}, obs::Observations, Nsamp::T) where T <: Integer
+    rand(s, obs, Nsamp*ones(Int, length(obs.xo)))
 end
-
-function draw_samples(xo, so, Nsamp)
-    return [rand(Normal(x, s), N) for (x,s,N) in zip(xo, so, Nsamp)]
-end
-
-function draw_samples_and_weights(xo, so, Nsamp::Int)
-    return draw_samples_and_weights(xo, so, Nsamp*ones(Int, length(xo)))
-end
-function draw_samples_and_weights(xo, so, Nsamp)
-    true_normal = Normal(mu_true, sigma_true)
-    samples_and_logweights = map(xo, so, Nsamp) do x, s, N
-        s_total = sqrt(1/(1/s^2 + 1/sigma_true^2))
-        m_total = (x/s^2 + mu_true/sigma_true^2) * s_total^2
-
-        samples = rand(Normal(m_total, s_total), N)
-        logwts = logpdf.((true_normal,), samples)
+function Random.rand(::Type{Samples}, obs::Observations, Nsamp::Vector{<:Integer})
+    prior_pdf = Normal(mu_true, 2*sigma_true) # Want a bit less shrinkage, but toward the right mean.
+    result = map(obs.xo, obs.so, Nsamp) do x, s, N
+        sigma = 1/sqrt(1/s^2 + 1/(2*sigma_true)^2)
+        mu = ((2*sigma_true)^2 * x + s^2 * mu_true) / (s^2 + (2*sigma_true)^2)
+        samples = rand(Normal(mu, sigma), N)
+        logwts = [logpdf(prior_pdf, x) for x in samples]
 
         (samples, logwts)
     end
-
-    return [x[1] for x in samples_and_logweights], [x[2] for x in samples_and_logweights]
+    
+    Samples(obs, [x[1] for x in result], [x[2] for x in result])
 end
 
-@model function exact_model(xo, so)
+@model function exact_model(obs)
     mu ~ Normal(0,1)
     sigma ~ Exponential(1)
 
-    xo ~ arraydist([Normal(mu, sqrt(sigma*sigma + s*s)) for s in so])
+    obs.xo ~ arraydist([Normal(mu, sqrt(sigma*sigma + s*s)) for s in obs.so])
 end
 
-@model function mc_model(xsamples, log_wts)
+@model function mc_model(samps)
     mu ~ Normal(0,1)
     sigma ~ Exponential(1)
 
-    logps = map(xsamples, log_wts) do samps, lwts
-        lps = map(samps, lwts) do x, lw
+    logps = map(samps.xs, samps.logwts) do samps, lwts
+        map(samps, lwts) do x, lw
             logpdf(Normal(mu, sigma), x) - lw
         end
     end
@@ -76,73 +75,11 @@ end
         length(lp) * p_var
     end
 
-    neff_samps = map(lp_vars) do lp
-        1/lp
+    neff_samps = map(lp_vars) do lpv
+        1/lpv
     end
 
     return (; neff_samps = neff_samps, lp_vars = lp_vars, total_lp_var = sum(lp_vars))
-end
-
-function effective_sigma(sigma_obs)
-    return sqrt(1 / sum( 1 ./ (sigma_obs .* sigma_obs)))
-end
-
-function run_exact_simulation(N)
-    xt = draw_truth(N)
-    so = draw_obs_sigmas(N)
-    xo = draw_obs(xt, so)
-    model = exact_model(xo, so)
-    trace = sample(model, NUTS(1000, 0.85), 1000)
-    return (; trace = trace, x_true = xt, x_obs = xo, sigma_obs = so)
-end
-
-function run_sample_simulation(xs, logwts)
-    model = mc_model(xs, logwts)
-    trace = sample(model, NUTS(1000, 0.85), 1000)
-    genq = generated_quantities(model, trace)
-    return (; trace = trace, genq = genq)
-end
-
-function min_neff_samps(genq)
-    return minimum([minimum(x.neff_samps) for x in genq])
-end
-
-function max_lp_var(genq)
-    return maximum([maximum(x.lp_vars) for x in genq])
-end
-
-function update_samples(xo, xs, xsamps, logwts, genq, min_neff)
-    neff = [minimum([g.neff_samps[i] for g in genq]) for i in eachindex(xsamps)]
-    nsamp = [length(x) for x in xsamps]
-
-    ndraw = [(ne > min_neff ? 0 : ns) for (ne, ns) in zip(neff, nsamp)]
-
-    new_xsamps, new_logwts = draw_samples_and_weights(xo, xs, ndraw)
-
-    return [vcat(x, nx) for (x, nx) in zip(xsamps, new_xsamps)], [vcat(lw, nlw) for (lw, nlw) in zip(logwts, new_logwts)]
-end
-
-function correct_nsamp(N, ne, desired_ne)
-    if ne > 2*desired_ne
-        Int(round(N/2))
-    elseif ne < desired_ne/2
-        Int(round(2*N))
-    else
-        Int(round(N))
-    end
-end
-
-function update_nsamp(genq, Nsamp::Int, desired_neff)
-    update_nsamp(genq, Nsamp*ones(Int, length(first(genq).neff_samps)), desired_neff)
-end
-
-function update_nsamp(genq, Nsamp, desired_neff)
-    min_neffs = [minimum(vec([x.neff_samps[i] for x in genq])) for i in eachindex(first(genq).neff_samps)]
-    return [correct_nsamp(Nsamp[i], min_neffs[i], desired_neff) for i in eachindex(Nsamp)]
-end
-
-function pairplot_results(result, result_mc)
-    pairplot(PairPlots.Series(result.trace[[:mu, :sigma]], label="Exact", color=Makie.wong_colors()[1], strokecolor=Makie.wong_colors()[1]), PairPlots.Series(result_mc.trace[[:mu, :sigma]], label="Monte-Carlo", color=Makie.wong_colors()[2], strokecolor=Makie.wong_colors()[2]), PairPlots.Truth((; mu=mu_true, sigma=sigma_true), color=:black, label="Truth"))
 end
 
 function traceplot(chns)
@@ -187,31 +124,6 @@ function traceplot(chns)
     axislegend(first(axes))
 
     fig
-end
-
-
-function run_one_simulation(; N = 128, Nsamp_init = 16, Neff_min = 10)
-    Nsamp = Nsamp_init
-
-    result_exact = run_exact_simulation(N)
-
-    xsamps, logwts = draw_samples_and_weights(result_exact.x_obs, result_exact.sigma_obs, Nsamp)
-
-    result_mc = run_sample_simulation(xsamps, logwts)
-    @info "Found $(round(min_neff_samps(result_mc.genq), digits=2)) effective samples, digits=2)), max log(p) variance = $(round(maximum([x.total_lp_var for x in result_mc.genq]), digits=2))"
-    while min_neff_samps(result_mc.genq) < Neff_min
-        old_xsamps = xsamps
-        xsamps, logwts = update_samples(result_exact.x_obs, result_exact.sigma_obs, xsamps, logwts, result_mc.genq, Neff_min)
-        for (i, (xs, oxs)) in enumerate(zip(xsamps, old_xsamps))
-            if length(xs) != length(oxs)
-                @info "Event $i: Added $(length(xs) - length(oxs)) samples"
-            end
-        end
-        result_mc = run_sample_simulation(xsamps, logwts)
-        @info "Found $(round(min_neff_samps(result_mc.genq), digits=2)) effective samples, max log(p) variance = $(round(maximum([x.total_lp_var for x in result_mc.genq]), digits=2))"
-    end
-    plot = pairplot_results(result_exact, result_mc)
-    return (; result_exact = result_exact, result_mc = result_mc, plot = plot)
 end
 
 end # module HowManySamples
